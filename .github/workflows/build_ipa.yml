@@ -1,0 +1,40 @@
+name: Build Unsigned iOS IPA
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build_ipa:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout project files
+        uses: actions/checkout@v4
+
+      - name: Verify AppIcon 1024x1024 RGB PNG
+        run: |
+          if [ -f "Assets.xcassets/AppIcon.appiconset/AppIcon.png" ]; then
+            sips -s format png -z 1024 1024 "Assets.xcassets/AppIcon.appiconset/AppIcon.png" --out "Assets.xcassets/AppIcon.appiconset/AppIcon_clean.png"
+            mv "Assets.xcassets/AppIcon.appiconset/AppIcon_clean.png" "Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+          fi
+
+      - name: Install XcodeGen
+        run: brew install xcodegen || true
+
+      - name: Generate Xcode Project
+        run: xcodegen generate
+
+      - name: Build Unsigned Release .app for iPhone (arm64)
+        run: xcodebuild -project SBCSafety.xcodeproj -scheme SBCSafety -configuration Release -sdk iphoneos -arch arm64 -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" AD_HOC_CODE_SIGNING_ALLOWED=NO build
+
+      - name: Package Unsigned IPA
+        run: mkdir -p Payload && cp -r build/Build/Products/Release-iphoneos/SBCSafety.app Payload/ && zip -qry DRWAZAH_SBC_v3.5.0.ipa Payload && ls -lh DRWAZAH_SBC_v3.5.0.ipa
+
+      - name: Upload Unsigned IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DRWAZAH_SBC_v3.5.0_IPA
+          path: DRWAZAH_SBC_v3.5.0.ipa
